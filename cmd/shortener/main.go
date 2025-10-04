@@ -18,9 +18,9 @@ const (
 )
 
 var (
-	validMemoryUnit = regexp.MustCompile(`^\d+(Gi|Mi|Ki)$`)
+	validMemoryUnit    = regexp.MustCompile(`^\d+(Gi|Mi|Ki)$`)
 	validContainerName = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
-	validImageDomain = "registry.bigbrother.io"
+	validImageDomain   = "registry.bigbrother.io"
 )
 
 func main() {
@@ -44,7 +44,6 @@ func validatePodYAML(filePath string) error {
 
 	var root yaml.Node
 	if err := yaml.Unmarshal(content, &root); err != nil {
-		// Try to get line number from error if possible
 		return fmt.Errorf("%s: cannot unmarshal YAML: %w", filePath, err)
 	}
 
@@ -126,13 +125,13 @@ func validateObjectMeta(filePath string, node *yaml.Node) error {
 	if err := validateRequiredField(filePath, fields, "name", node); err != nil {
 		return err
 	}
-	if fields["name"].Kind != yaml.ScalarNode || fields["name"].Tag != "!!str" {
+	if fields["name"].Kind != yaml.ScalarNode {
 		return fmt.Errorf("%s:%d name must be string", filePath, fields["name"].Line)
 	}
 
 	// namespace is optional
 	if namespaceNode, exists := fields["namespace"]; exists {
-		if namespaceNode.Kind != yaml.ScalarNode || namespaceNode.Tag != "!!str" {
+		if namespaceNode.Kind != yaml.ScalarNode {
 			return fmt.Errorf("%s:%d namespace must be string", filePath, namespaceNode.Line)
 		}
 	}
@@ -145,7 +144,7 @@ func validateObjectMeta(filePath string, node *yaml.Node) error {
 		// Validate that all label values are strings
 		for i := 0; i < len(labelsNode.Content); i += 2 {
 			valueNode := labelsNode.Content[i+1]
-			if valueNode.Kind != yaml.ScalarNode || valueNode.Tag != "!!str" {
+			if valueNode.Kind != yaml.ScalarNode {
 				return fmt.Errorf("%s:%d labels values must be strings", filePath, valueNode.Line)
 			}
 		}
@@ -161,10 +160,21 @@ func validatePodSpec(filePath string, node *yaml.Node) error {
 
 	fields := extractMappingFields(node)
 
-	// os is optional
+	// os is optional - handle both scalar and object formats
 	if osNode, exists := fields["os"]; exists {
-		if err := validatePodOS(filePath, osNode); err != nil {
-			return err
+		if osNode.Kind == yaml.ScalarNode {
+			// Handle inline format: os: linux
+			osName := osNode.Value
+			if osName != validOSNameLinux && osName != validOSNameWindows {
+				return fmt.Errorf("%s:%d os has unsupported value '%s'", filePath, osNode.Line, osName)
+			}
+		} else if osNode.Kind == yaml.MappingNode {
+			// Handle object format: os: {name: linux}
+			if err := validatePodOS(filePath, osNode); err != nil {
+				return err
+			}
+		} else {
+			return fmt.Errorf("%s:%d os must be string or object", filePath, osNode.Line)
 		}
 	}
 
@@ -187,7 +197,7 @@ func validatePodOS(filePath string, node *yaml.Node) error {
 	if err := validateRequiredField(filePath, fields, "name", node); err != nil {
 		return err
 	}
-	if fields["name"].Kind != yaml.ScalarNode || fields["name"].Tag != "!!str" {
+	if fields["name"].Kind != yaml.ScalarNode {
 		return fmt.Errorf("%s:%d name must be string", filePath, fields["name"].Line)
 	}
 
@@ -223,7 +233,7 @@ func validateContainer(filePath string, node *yaml.Node, existingNames map[strin
 	if err := validateRequiredField(filePath, fields, "name", node); err != nil {
 		return err
 	}
-	if fields["name"].Kind != yaml.ScalarNode || fields["name"].Tag != "!!str" {
+	if fields["name"].Kind != yaml.ScalarNode {
 		return fmt.Errorf("%s:%d name must be string", filePath, fields["name"].Line)
 	}
 
@@ -239,20 +249,41 @@ func validateContainer(filePath string, node *yaml.Node, existingNames map[strin
 	if err := validateRequiredField(filePath, fields, "image", node); err != nil {
 		return err
 	}
-	if fields["image"].Kind != yaml.ScalarNode || fields["image"].Tag != "!!str" {
+	if fields["image"].Kind != yaml.ScalarNode {
 		return fmt.Errorf("%s:%d image must be string", filePath, fields["image"].Line)
 	}
 
 	image := fields["image"].Value
+	
+	// Check domain
 	if !strings.HasPrefix(image, validImageDomain+"/") {
 		return fmt.Errorf("%s:%d image has invalid format '%s'", filePath, fields["image"].Line, image)
 	}
-	parts := strings.Split(image, "/")
-	if len(parts) < 3 {
+	
+	// Remove domain prefix to get the rest
+	rest := strings.TrimPrefix(image, validImageDomain+"/")
+	if rest == "" {
 		return fmt.Errorf("%s:%d image has invalid format '%s'", filePath, fields["image"].Line, image)
 	}
-	tagPart := parts[len(parts)-1]
+	
+	// Check if there's a tag (colon in the last part after last slash)
+	lastSlashIndex := strings.LastIndex(rest, "/")
+	var tagPart string
+	if lastSlashIndex == -1 {
+		// Format: registry.bigbrother.io/imagename:tag
+		tagPart = rest
+	} else {
+		// Format: registry.bigbrother.io/namespace/imagename:tag
+		tagPart = rest[lastSlashIndex+1:]
+	}
+	
 	if !strings.Contains(tagPart, ":") {
+		return fmt.Errorf("%s:%d image has invalid format '%s'", filePath, fields["image"].Line, image)
+	}
+	
+	// Ensure tag is not empty (e.g., "image:" is invalid)
+	colonIndex := strings.Index(tagPart, ":")
+	if colonIndex == len(tagPart)-1 {
 		return fmt.Errorf("%s:%d image has invalid format '%s'", filePath, fields["image"].Line, image)
 	}
 
@@ -325,7 +356,7 @@ func validateContainerPort(filePath string, node *yaml.Node) error {
 
 	// protocol is optional
 	if protocolNode, exists := fields["protocol"]; exists {
-		if protocolNode.Kind != yaml.ScalarNode || protocolNode.Tag != "!!str" {
+		if protocolNode.Kind != yaml.ScalarNode {
 			return fmt.Errorf("%s:%d protocol must be string", filePath, protocolNode.Line)
 		}
 		protocol := protocolNode.Value
@@ -363,7 +394,7 @@ func validateHTTPGetAction(filePath string, node *yaml.Node) error {
 	if err := validateRequiredField(filePath, fields, "path", node); err != nil {
 		return err
 	}
-	if fields["path"].Kind != yaml.ScalarNode || fields["path"].Tag != "!!str" {
+	if fields["path"].Kind != yaml.ScalarNode {
 		return fmt.Errorf("%s:%d path must be string", filePath, fields["path"].Line)
 	}
 	path := fields["path"].Value
@@ -426,15 +457,15 @@ func validateResourceList(filePath string, node *yaml.Node, fieldName string) er
 		if cpuNode.Kind != yaml.ScalarNode {
 			return fmt.Errorf("%s:%d %s.cpu must be int", filePath, cpuNode.Line, fieldName)
 		}
-	// Accept both int and string that can be parsed as int
-	if _, err := strconv.Atoi(cpuNode.Value); err != nil {
-		return fmt.Errorf("%s:%d %s.cpu must be int", filePath, cpuNode.Line, fieldName)
+		// Accept both int and string that can be parsed as int
+		if _, err := strconv.Atoi(cpuNode.Value); err != nil {
+			return fmt.Errorf("%s:%d %s.cpu must be int", filePath, cpuNode.Line, fieldName)
+		}
 	}
-}
 
 	// Validate memory if present
 	if memoryNode, exists := fields["memory"]; exists {
-		if memoryNode.Kind != yaml.ScalarNode || memoryNode.Tag != "!!str" {
+		if memoryNode.Kind != yaml.ScalarNode {
 			return fmt.Errorf("%s:%d %s.memory must be string", filePath, memoryNode.Line, fieldName)
 		}
 		memory := memoryNode.Value
