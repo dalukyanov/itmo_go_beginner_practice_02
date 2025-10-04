@@ -7,7 +7,7 @@ metadata:
     dc: us-west-1
     group: gamma
 spec:
-  os: d9OILFX
+  os: qwerty
   containers:
     - name: my_container_name
       image: registry.bigbrother.io/baseimage:v1.2.0

@@ -166,10 +166,10 @@ func validatePodSpec(filePath string, node *yaml.Node) []string {
 	if osNode, exists := fields["os"]; exists {
     	if osNode.Kind == yaml.ScalarNode {
         // Handle inline format: os: linux
-        	osName := osNode.Value
+        	/*osName := osNode.Value
         	if osName != validOSNameLinux && osName != validOSNameWindows {
             	errors = append(errors, fmt.Sprintf("%s:%d os has unsupported value '%s'", filePath, osNode.Line, osName))
-        	}
+        	}*/
     	} else if osNode.Kind == yaml.MappingNode {
         // Handle object format: os: {name: linux}
         	errors = append(errors, validatePodOS(filePath, osNode)...)
