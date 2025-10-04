@@ -81,12 +81,18 @@ func validatePodYAML(filePath string) error {
 	if err := validateRequiredField(filePath, fields, "apiVersion", mapping); err != nil {
 		return err
 	}
+	if fields["apiVersion"].Value == "" {
+		return fmt.Errorf("%s:%d apiVersion is required", filePath, fields["apiVersion"].Line)
+	}
 	if fields["apiVersion"].Value != "v1" {
 		return fmt.Errorf("%s:%d apiVersion has unsupported value '%s'", filePath, fields["apiVersion"].Line, fields["apiVersion"].Value)
 	}
 
 	if err := validateRequiredField(filePath, fields, "kind", mapping); err != nil {
 		return err
+	}
+	if fields["kind"].Value == "" {
+		return fmt.Errorf("%s:%d kind is required", filePath, fields["kind"].Line)
 	}
 	if fields["kind"].Value != "Pod" {
 		return fmt.Errorf("%s:%d kind has unsupported value '%s'", filePath, fields["kind"].Line, fields["kind"].Value)
@@ -127,6 +133,10 @@ func validateObjectMeta(filePath string, node *yaml.Node) error {
 	}
 	if fields["name"].Kind != yaml.ScalarNode {
 		return fmt.Errorf("%s:%d name must be string", filePath, fields["name"].Line)
+	}
+	name := fields["name"].Value
+	if name == "" {
+		return fmt.Errorf("%s:%d name is required", filePath, fields["name"].Line)
 	}
 
 	// namespace is optional
@@ -200,10 +210,12 @@ func validatePodOS(filePath string, node *yaml.Node) error {
 	if fields["name"].Kind != yaml.ScalarNode {
 		return fmt.Errorf("%s:%d name must be string", filePath, fields["name"].Line)
 	}
-
-	osName := fields["name"].Value
-	if osName != validOSNameLinux && osName != validOSNameWindows {
-		return fmt.Errorf("%s:%d os has unsupported value '%s'", filePath, fields["name"].Line, osName)
+	name := fields["name"].Value
+	if name == "" {
+		return fmt.Errorf("%s:%d name is required", filePath, fields["name"].Line)
+	}
+	if name != validOSNameLinux && name != validOSNameWindows {
+		return fmt.Errorf("%s:%d os has unsupported value '%s'", filePath, fields["name"].Line, name)
 	}
 
 	return nil
@@ -236,8 +248,10 @@ func validateContainer(filePath string, node *yaml.Node, existingNames map[strin
 	if fields["name"].Kind != yaml.ScalarNode {
 		return fmt.Errorf("%s:%d name must be string", filePath, fields["name"].Line)
 	}
-
 	name := fields["name"].Value
+	if name == "" {
+		return fmt.Errorf("%s:%d name is required", filePath, fields["name"].Line)
+	}
 	if !validContainerName.MatchString(name) {
 		return fmt.Errorf("%s:%d name has invalid format '%s'", filePath, fields["name"].Line, name)
 	}
@@ -252,9 +266,11 @@ func validateContainer(filePath string, node *yaml.Node, existingNames map[strin
 	if fields["image"].Kind != yaml.ScalarNode {
 		return fmt.Errorf("%s:%d image must be string", filePath, fields["image"].Line)
 	}
-
 	image := fields["image"].Value
-	
+	if image == "" {
+		return fmt.Errorf("%s:%d image is required", filePath, fields["image"].Line)
+	}
+
 	// Check domain
 	if !strings.HasPrefix(image, validImageDomain+"/") {
 		return fmt.Errorf("%s:%d image has invalid format '%s'", filePath, fields["image"].Line, image)
@@ -398,6 +414,9 @@ func validateHTTPGetAction(filePath string, node *yaml.Node) error {
 		return fmt.Errorf("%s:%d path must be string", filePath, fields["path"].Line)
 	}
 	path := fields["path"].Value
+	if path == "" {
+		return fmt.Errorf("%s:%d path is required", filePath, fields["path"].Line)
+	}
 	if !strings.HasPrefix(path, "/") {
 		return fmt.Errorf("%s:%d path must be absolute", filePath, fields["path"].Line)
 	}
@@ -469,6 +488,9 @@ func validateResourceList(filePath string, node *yaml.Node, fieldName string) er
 			return fmt.Errorf("%s:%d %s.memory must be string", filePath, memoryNode.Line, fieldName)
 		}
 		memory := memoryNode.Value
+		if memory == "" {
+			return fmt.Errorf("%s:%d %s.memory is required", filePath, memoryNode.Line, fieldName)
+		}
 		if !validMemoryUnit.MatchString(memory) {
 			return fmt.Errorf("%s:%d %s.memory has invalid format '%s'", filePath, memoryNode.Line, fieldName, memory)
 		}
