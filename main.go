@@ -26,7 +26,7 @@ var (
 func main() {
 	if len(os.Args) != 2 {
 		//fmt.Fprintf(os.Stderr, "Usage: %s <yaml-file>\n", os.Args[0])
-		fmt.Println("Usage: %s <yaml-file>", os.Args[0])
+		fmt.Printf("Usage: %s <yaml-file>", os.Args[0])
 		os.Exit(255)
 	}
 
