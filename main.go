@@ -34,7 +34,7 @@ func main() {
 	fileName := filepath.Base(filePath)
 	errors := validatePodYAML(filePath, fileName)
 	if len(errors) > 0 {
-		// Reverse the slice
+		// Развернуть слайс. Чтобы ошибки выводились в порядке их обнаружения в файле.
 		for i, j := 0, len(errors)-1; i < j; i, j = i+1, j-1 {
 			errors[i], errors[j] = errors[j], errors[i]
 		}
@@ -76,7 +76,7 @@ func validatePodYAML(fullPath string, fileName string) []string {
 
 	fields := extractMappingFields(mappingNode)
 
-	// Validate top-level fields
+	// Проверка полей верхнего уровня
 	if _, exists := fields["apiVersion"]; !exists {
 		errors = append(errors, fmt.Sprintf("%s: apiVersion is required", fileName))
 	} else {
@@ -134,19 +134,19 @@ func validateObjectMeta(fileName string, node *yaml.Node) []string {
 		}
 	}
 
-	// namespace is optional
+	// namespace - опциональный поле
 	if namespaceNode, exists := fields["namespace"]; exists {
 		if namespaceNode.Kind != yaml.ScalarNode || namespaceNode.Tag != "!!str" {
 			errors = append(errors, fmt.Sprintf("%s:%d namespace must be string", fileName, namespaceNode.Line))
 		}
 	}
 
-	// labels is optional
+	// labels - опциональное поле
 	if labelsNode, exists := fields["labels"]; exists {
 		if labelsNode.Kind != yaml.MappingNode {
 			errors = append(errors, fmt.Sprintf("%s:%d labels must be object", fileName, labelsNode.Line))
 		} else {
-			// Validate that all label values are strings
+			// Проверка, что все ключи и значения - строки
 			for i := 0; i < len(labelsNode.Content); i += 2 {
 				valueNode := labelsNode.Content[i+1]
 				if valueNode.Kind != yaml.ScalarNode || valueNode.Tag != "!!str" {
@@ -168,16 +168,16 @@ func validatePodSpec(fileName string, node *yaml.Node) []string {
 
 	fields := extractMappingFields(node)
 
-	// os is optional - handle both scalar and object formats
+	// os - опциональное поле. Проверки, что оно либо строка, либо объект с полем name
 	if osNode, exists := fields["os"]; exists {
     	if osNode.Kind == yaml.ScalarNode {
-        // Handle inline format: os: linux
+        // Правильные значениея os в формате: linux
         	osName := osNode.Value
         	if osName != validOSNameLinux && osName != validOSNameWindows {
             	errors = append(errors, fmt.Sprintf("%s:%d os has unsupported value '%s'", fileName, osNode.Line, osName))
         	}
     	} else if osNode.Kind == yaml.MappingNode {
-        // Handle object format: os: {name: linux}
+        // Правильные значениея os в формате: {name: linux}
         	errors = append(errors, validatePodOS(fileName, osNode)...)
     	} else {
         errors = append(errors, fmt.Sprintf("%s:%d os must be string or object", fileName, osNode.Line))
@@ -274,30 +274,29 @@ func validateContainer(fileName string, node *yaml.Node, existingNames map[strin
 			if image == "" {
 				errors = append(errors, fmt.Sprintf("%s:%d image is required", fileName, fields["image"].Line))
 			} else {
-				// Check domain
+				// Проверка формата домена для изображения
 				if !strings.HasPrefix(image, validImageDomain+"/") {
 					errors = append(errors, fmt.Sprintf("%s:%d image has invalid format '%s'", fileName, fields["image"].Line, image))
 				} else {
-					// Remove domain prefix to get the rest
+					// Удаление префикса домена
 					rest := strings.TrimPrefix(image, validImageDomain+"/")
 					if rest == "" {
 						errors = append(errors, fmt.Sprintf("%s:%d image has invalid format '%s'", fileName, fields["image"].Line, image))
 					} else {
-						// Check if there's a tag (colon in the last part after last slash)
 						lastSlashIndex := strings.LastIndex(rest, "/")
 						var tagPart string
 						if lastSlashIndex == -1 {
-							// Format: registry.bigbrother.io/imagename:tag
+							// Формат: registry.bigbrother.io/imagename:tag
 							tagPart = rest
 						} else {
-							// Format: registry.bigbrother.io/namespace/imagename:tag
+							// Формат: registry.bigbrother.io/namespace/imagename:tag
 							tagPart = rest[lastSlashIndex+1:]
 						}
 						
 						if !strings.Contains(tagPart, ":") {
 							errors = append(errors, fmt.Sprintf("%s:%d image has invalid format '%s'", fileName, fields["image"].Line, image))
 						} else {
-							// Ensure tag is not empty (e.g., "image:" is invalid)
+							// Убедимся, что тег не пустой
 							colonIndex := strings.Index(tagPart, ":")
 							if colonIndex == len(tagPart)-1 {
 								errors = append(errors, fmt.Sprintf("%s:%d image has invalid format '%s'", fileName, fields["image"].Line, image))
@@ -309,17 +308,17 @@ func validateContainer(fileName string, node *yaml.Node, existingNames map[strin
 		}
 	}
 
-	// ports is optional
+	// ports - опциональное поле
 	if portsNode, exists := fields["ports"]; exists {
 		errors = append(errors, validateContainerPorts(fileName, portsNode)...)
 	}
 
-	// readinessProbe is optional
+	// readinessProbe - опциональное поле
 	if readinessProbeNode, exists := fields["readinessProbe"]; exists {
 		errors = append(errors, validateProbe(fileName, readinessProbeNode)...)
 	}
 
-	// livenessProbe is optional
+	// livenessProbe - опциональное поле
 	if livenessProbeNode, exists := fields["livenessProbe"]; exists {
 		errors = append(errors, validateProbe(fileName, livenessProbeNode)...)
 	}
@@ -377,7 +376,7 @@ func validateContainerPort(fileName string, node *yaml.Node) []string {
 		}
 	}
 
-	// protocol is optional
+	// protocol - опциональное поле
 	if protocolNode, exists := fields["protocol"]; exists {
 		if protocolNode.Kind != yaml.ScalarNode || protocolNode.Tag != "!!str" {
 			errors = append(errors, fmt.Sprintf("%s:%d protocol must be string", fileName, protocolNode.Line))
@@ -504,7 +503,7 @@ func validateResourceList(fileName string, node *yaml.Node, fieldName string) []
 		}
 	}
 
-	// Validate memory if present
+	// Проверка memory, если указано
 	if memoryNode, exists := fields["memory"]; exists {
 		if memoryNode.Kind != yaml.ScalarNode || memoryNode.Tag != "!!str" {
 			errors = append(errors, fmt.Sprintf("%s:%d memory must be string", fileName, memoryNode.Line))
