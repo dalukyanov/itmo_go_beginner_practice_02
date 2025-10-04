@@ -164,20 +164,18 @@ func validatePodSpec(filePath string, node *yaml.Node) []string {
 
 	// os is optional - handle both scalar and object formats
 	if osNode, exists := fields["os"]; exists {
-		if osNode.Kind == yaml.ScalarNode {
-			if osNode.Tag != "!!str" {
-				errors = append(errors, fmt.Sprintf("%s:%d os must be string", filePath, osNode.Line))
-			} else {
-				osName := osNode.Value
-				if osName != validOSNameLinux && osName != validOSNameWindows {
-					errors = append(errors, fmt.Sprintf("%s:%d os has unsupported value '%s'", filePath, osNode.Line, osName))
-				}
-			}
-		} else if osNode.Kind == yaml.MappingNode {
-			errors = append(errors, validatePodOS(filePath, osNode)...)
-		} else {
-			errors = append(errors, fmt.Sprintf("%s:%d os must be string or object", filePath, osNode.Line))
-		}
+    	if osNode.Kind == yaml.ScalarNode {
+        // Handle inline format: os: linux
+        	osName := osNode.Value
+        	if osName != validOSNameLinux && osName != validOSNameWindows {
+            	errors = append(errors, fmt.Sprintf("%s:%d os has unsupported value '%s'", filePath, osNode.Line, osName))
+        	}
+    	} else if osNode.Kind == yaml.MappingNode {
+        // Handle object format: os: {name: linux}
+        	errors = append(errors, validatePodOS(filePath, osNode)...)
+    	} else {
+        errors = append(errors, fmt.Sprintf("%s:%d os must be string or object", filePath, osNode.Line))
+    	}
 	}
 
 	if _, exists := fields["containers"]; !exists {
@@ -198,19 +196,15 @@ func validatePodOS(filePath string, node *yaml.Node) []string {
 
 	fields := extractMappingFields(node)
 	
-	if _, exists := fields["name"]; !exists {
-		errors = append(errors, fmt.Sprintf("%s: name is required", filePath))
+	if fields["name"].Kind != yaml.ScalarNode {
+    	errors = append(errors, fmt.Sprintf("%s:%d name must be string", filePath, fields["name"].Line))
 	} else {
-		if fields["name"].Kind != yaml.ScalarNode || fields["name"].Tag != "!!str" {
-			errors = append(errors, fmt.Sprintf("%s:%d name must be string", filePath, fields["name"].Line))
-		} else {
-			name := fields["name"].Value
-			if name == "" {
-				errors = append(errors, fmt.Sprintf("%s:%d name is required", filePath, fields["name"].Line))
-			} else if name != validOSNameLinux && name != validOSNameWindows {
-				errors = append(errors, fmt.Sprintf("%s:%d os has unsupported value '%s'", filePath, fields["name"].Line, name))
-			}
-		}
+    	name := fields["name"].Value
+    	if name == "" {
+        	errors = append(errors, fmt.Sprintf("%s:%d name is required", filePath, fields["name"].Line))
+    	} else if name != validOSNameLinux && name != validOSNameWindows {
+        	errors = append(errors, fmt.Sprintf("%s:%d os has unsupported value '%s'", filePath, fields["name"].Line, name))
+    	}
 	}
 
 	return errors
