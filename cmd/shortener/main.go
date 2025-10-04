@@ -47,38 +47,26 @@ func validatePodYAML(filePath string) error {
 		return fmt.Errorf("%s: cannot unmarshal YAML: %w", filePath, err)
 	}
 
-	if len(root.Content) == 0 {
-		return fmt.Errorf("%s: empty YAML document", filePath)
-	}
-
-	doc := root.Content[0]
-	if doc.Kind != yaml.DocumentNode {
-		doc = &root
-	}
-
-	if len(doc.Content) == 0 {
-		return fmt.Errorf("%s: apiVersion is required", filePath)
-	}
-
-	// Expect mapping node at top level
-	if doc.Content[0].Kind != yaml.MappingNode {
+	var mappingNode *yaml.Node
+	switch root.Kind {
+	case yaml.DocumentNode:
+		if len(root.Content) == 0 {
+			return fmt.Errorf("%s: empty YAML document", filePath)
+		}
+		if root.Content[0].Kind != yaml.MappingNode {
+			return fmt.Errorf("%s: invalid YAML structure", filePath)
+		}
+		mappingNode = root.Content[0]
+	case yaml.MappingNode:
+		mappingNode = &root
+	default:
 		return fmt.Errorf("%s: invalid YAML structure", filePath)
 	}
 
-	mapping := doc.Content[0]
-	if len(mapping.Content)%2 != 0 {
-		return fmt.Errorf("%s: invalid mapping structure", filePath)
-	}
-
-	fields := make(map[string]*yaml.Node)
-	for i := 0; i < len(mapping.Content); i += 2 {
-		keyNode := mapping.Content[i]
-		valueNode := mapping.Content[i+1]
-		fields[keyNode.Value] = valueNode
-	}
+	fields := extractMappingFields(mappingNode)
 
 	// Validate top-level fields
-	if err := validateRequiredField(filePath, fields, "apiVersion", mapping); err != nil {
+	if err := validateRequiredField(filePath, fields, "apiVersion", mappingNode); err != nil {
 		return err
 	}
 	if fields["apiVersion"].Value == "" {
@@ -88,7 +76,7 @@ func validatePodYAML(filePath string) error {
 		return fmt.Errorf("%s:%d apiVersion has unsupported value '%s'", filePath, fields["apiVersion"].Line, fields["apiVersion"].Value)
 	}
 
-	if err := validateRequiredField(filePath, fields, "kind", mapping); err != nil {
+	if err := validateRequiredField(filePath, fields, "kind", mappingNode); err != nil {
 		return err
 	}
 	if fields["kind"].Value == "" {
@@ -98,14 +86,14 @@ func validatePodYAML(filePath string) error {
 		return fmt.Errorf("%s:%d kind has unsupported value '%s'", filePath, fields["kind"].Line, fields["kind"].Value)
 	}
 
-	if err := validateRequiredField(filePath, fields, "metadata", mapping); err != nil {
+	if err := validateRequiredField(filePath, fields, "metadata", mappingNode); err != nil {
 		return err
 	}
 	if err := validateObjectMeta(filePath, fields["metadata"]); err != nil {
 		return err
 	}
 
-	if err := validateRequiredField(filePath, fields, "spec", mapping); err != nil {
+	if err := validateRequiredField(filePath, fields, "spec", mappingNode); err != nil {
 		return err
 	}
 	if err := validatePodSpec(filePath, fields["spec"]); err != nil {
