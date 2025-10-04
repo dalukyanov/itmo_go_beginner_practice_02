@@ -426,10 +426,11 @@ func validateResourceList(filePath string, node *yaml.Node, fieldName string) er
 		if cpuNode.Kind != yaml.ScalarNode {
 			return fmt.Errorf("%s:%d %s.cpu must be int", filePath, cpuNode.Line, fieldName)
 		}
-		if _, err := strconv.Atoi(cpuNode.Value); err != nil {
-			return fmt.Errorf("%s:%d %s.cpu must be int", filePath, cpuNode.Line, fieldName)
-		}
+	// Accept both int and string that can be parsed as int
+	if _, err := strconv.Atoi(cpuNode.Value); err != nil {
+		return fmt.Errorf("%s:%d %s.cpu must be int", filePath, cpuNode.Line, fieldName)
 	}
+}
 
 	// Validate memory if present
 	if memoryNode, exists := fields["memory"]; exists {
