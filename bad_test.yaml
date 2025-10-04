@@ -7,7 +7,7 @@ metadata:
     dc: us-west-1
     group: gamma
 spec:
-  os: linux
+  os: WjJ
   containers:
     - name: my_container_name
       image: registry.bigbrother.io/baseimage:v1.2.0
@@ -17,15 +17,15 @@ spec:
       readinessProbe:
         httpGet:
           path: /_ready
-          port: 79158
+          port: 8080
       livenessProbe:
         httpGet:
           path: /_alive
-          port: 8080
+          port: -17651
       resources:
         limits:
           cpu: 2
           memory: "1Gi"
         requests:
-          cpu: "1"
+          cpu: 1
           memory: "500Mi"

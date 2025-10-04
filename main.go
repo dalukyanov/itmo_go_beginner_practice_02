@@ -39,7 +39,7 @@ func main() {
 		for _, err := range errors {
 			fmt.Fprintf(os.Stderr, "%s\n", err)
 		}
-		os.Exit(1)
+		os.Exit(255)
 	}
 }
 
