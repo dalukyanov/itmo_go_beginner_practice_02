@@ -322,40 +322,21 @@ func validateContainer(filePath string, node *yaml.Node, existingNames map[strin
 	return nil
 }
 
-func validateContainerPort(filePath string, node *yaml.Node) error {
-    fields := extractMappingFields(node)
+func validateContainerPorts(filePath string, node *yaml.Node) error {
+	if node.Kind != yaml.SequenceNode {
+		return fmt.Errorf("%s:%d ports must be array", filePath, node.Line)
+	}
 
-    if err := validateRequiredField(filePath, fields, "containerPort", node); err != nil {
-        return err
-    }
-    if fields["containerPort"].Kind != yaml.ScalarNode {
-        return fmt.Errorf("%s:%d containerPort must be int", filePath, fields["containerPort"].Line)
-    }
-    // Must be actual integer in YAML
-    if fields["containerPort"].Tag != "!!int" {
-        return fmt.Errorf("%s:%d containerPort must be int", filePath, fields["containerPort"].Line)
-    }
+	for idx, portNode := range node.Content {
+		if portNode.Kind != yaml.MappingNode {
+			return fmt.Errorf("%s:%d ports[%d] must be object", filePath, portNode.Line, idx)
+		}
+		if err := validateContainerPort(filePath, portNode); err != nil {
+			return err
+		}
+	}
 
-    port, err := strconv.Atoi(fields["containerPort"].Value)
-    if err != nil {
-        return fmt.Errorf("%s:%d containerPort must be int", filePath, fields["containerPort"].Line)
-    }
-    if port <= 0 || port >= 65536 {
-        return fmt.Errorf("%s:%d containerPort value out of range", filePath, fields["containerPort"].Line)
-    }
-
-    // protocol is optional
-    if protocolNode, exists := fields["protocol"]; exists {
-        if protocolNode.Kind != yaml.ScalarNode || protocolNode.Tag != "!!str" {
-            return fmt.Errorf("%s:%d protocol must be string", filePath, protocolNode.Line)
-        }
-        protocol := protocolNode.Value
-        if protocol != validProtocolTCP && protocol != validProtocolUDP {
-            return fmt.Errorf("%s:%d protocol has unsupported value '%s'", filePath, protocolNode.Line, protocol)
-        }
-    }
-
-    return nil
+	return nil
 }
 
 func validateContainerPort(filePath string, node *yaml.Node) error {
@@ -492,7 +473,7 @@ func validateResourceList(filePath string, node *yaml.Node, fieldName string) er
     	// Must be actual integer in YAML, not string
     	if cpuNode.Tag != "!!int" {
         	return fmt.Errorf("%s:%d %s.cpu must be int", filePath, cpuNode.Line, fieldName)
-    	}
+    }
     	// Additionally verify it can be parsed as integer
     	if _, err := strconv.Atoi(cpuNode.Value); err != nil {
         	return fmt.Errorf("%s:%d %s.cpu must be int", filePath, cpuNode.Line, fieldName)
