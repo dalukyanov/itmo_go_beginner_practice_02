@@ -32,6 +32,10 @@ func main() {
 	filePath := os.Args[1]
 	errors := validatePodYAML(filePath)
 	if len(errors) > 0 {
+		// Reverse the slice
+		for i, j := 0, len(errors)-1; i < j; i, j = i+1, j-1 {
+			errors[i], errors[j] = errors[j], errors[i]
+		}
 		for _, err := range errors {
 			fmt.Fprintf(os.Stderr, "%s\n", err)
 		}
